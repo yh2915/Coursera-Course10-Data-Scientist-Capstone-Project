@@ -1,0 +1,66 @@
+---
+title: "10. Capstone Week1 Quiz1"
+author: "YH"
+date: "11/03/2020"
+output: html_document
+---
+```{r readin data,echo=TRUE}
+blog<-readLines(con="final/en_US/en_US.blogs.txt")
+news<-readLines(con="final/en_US/en_US.news.txt")
+twitter<-readLines(con="final/en_US/en_US.twitter.txt")
+```
+
+#### Q1
+###### The en_US.blogs.txt file is how many megabytes?
+```{r q1}
+w1q1_info<-file.info("final/en_US/en_US.blogs.txt")
+w1q1_wb<-w1q1_info$size/1000000
+w1q1_wb
+rm(w1q1_info,
+   w1q1_wb)
+```
+###### Answer: 200MB
+
+#### Q2
+###### The en_US.twitter.txt has how many lines of text?
+```{r q2}
+length(twitter)
+```
+###### 2360148
+###### Answer: Over 2 Million
+
+#### Q3
+###### What is the length of the longest line seen in any of the three en_US data sets?
+```{r q3}
+rbind(summary(nchar(blog)),
+      summary(nchar(news)),
+      summary(nchar(twitter)))
+```
+###### Answer: Over 40 thousand in the blogs data set
+
+#### Q4
+###### In the en_US twitter data set, if you divide the number of lines where the word "love" (all lowercase) occurs by the number of lines the word "hate" (all lowercase) occurs, about what do you get?
+```{r q4}
+sum(grepl("love", twitter))/ sum(grepl("hate", twitter))
+```
+###### Answer: 4
+
+#### Q5
+###### The one tweet in the en_US twitter data set that matches the word "biostats" says what?
+```{r q5}
+grep("biostats", twitter,value = TRUE)
+```
+######  Answer: They haven't studied for their biostats exam
+
+#### Q6
+###### How many tweets have the exact characters "A computer once beat me at chess, but it was no match for me at kickboxing". (I.e. the line matches those characters exactly.)
+```{r q6}
+sum(grepl("A computer once beat me at chess, but it was no match for me at kickboxing",twitter,fixed = TRUE))
+```
+######  Answer: 3
+
+```{r End}
+rm(blog,
+   news,
+   twitter)
+```

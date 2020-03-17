@@ -1,0 +1,200 @@
+---
+title: "Data Science Capstone Week 2 Milestone Report"
+author: "YH"
+date: "11/03/2020"
+output: html_document
+---
+### Introduction
+###### This is the Week2 milestone report of Coursera Data Science Capstone course. 
+###### In this Report, the main goal is to build the first simple model for the relationship between words. This is the first step in building a predictive text mining application. The data is from three sources: blog, news and twitter in English(US).
+
+### Read in data and load required library
+```{r readin data,echo=TRUE, message=FALSE, warning=FALSE}
+#Load library
+  library(quanteda)
+  library(readtext)
+  library(knitr)
+  library(kableExtra)
+  library(tm)
+  library(ggplot2)
+  library(stringi)
+
+#Read in data
+  add_blog<-"final/en_US/en_US.blogs.txt"
+  add_news<-"final/en_US/en_US.news.txt"
+  add_twitter<-"final/en_US/en_US.twitter.txt"
+  file_blog<-readLines(con=add_blog)
+  file_news<-readLines(con=add_news)
+  file_twitter<-readLines(con=add_twitter)
+  
+#Clean up data by removing all the non-English words from the file
+  file_blog <- iconv(file_blog, "latin1", "ASCII", sub="")
+  file_news <- iconv(file_news, "latin1", "ASCII", sub="")
+  file_twitter <- iconv(file_twitter, "latin1", "ASCII", sub="")
+```
+
+### An overview on the basic information of the files
+###### Here I explore the general information of the three data files
+```{r overview}
+summary_basic<-rbind(summary(nchar(file_blog)),
+                     summary(nchar(file_news)),
+                     summary(nchar(file_twitter)))
+row.names(summary_basic)<-c("blog","news","twitter")
+colnames(summary_basic)<-sapply(colnames(summary_basic),function(x)paste("nchar.",x,collapse = ""))
+summary_basic<-as.data.frame(summary_basic)
+Size.MB<-c(file.info(add_blog)$size/1000000,
+        file.info(add_news)$size/1000000,
+        file.info(add_twitter)$size/1000000)
+No.Line<-c(length(file_blog),
+           length(file_news),
+           length(file_twitter))
+summary_basic<-cbind(summary_basic,Size.MB,No.Line)
+kable(summary_basic, caption = "An overview on the three text files") %>% kable_styling()
+```
+
+### sampling and combining data
+###### Given that the size of the data is really big, I would only use a subset of the data with random sampling for the following analyzing.
+```{r subset, echo=TRUE }
+#Set the size of sampling I would like to use
+  size<-0.1
+#Set seed to make the random sampling reproducible
+  set.seed(420)
+#Take sample from each source
+  sample_blog<-sample(file_blog, length(file_blog) * size)
+  sample_news<-sample(file_news, length(file_news) * size)
+  sample_twitter<-sample(file_twitter, length(file_twitter) * size)
+  rm(file_blog,
+     file_news,
+     file_twitter)
+#combine and create a corpus object using quanteda package.
+  corpus_all<-corpus(c(sample_blog,
+                       sample_news,
+                       sample_twitter))
+  saveRDS(corpus_all, "corpus_all.RDS")
+  summary_all<-summary(corpus_all)
+  rm(sample_blog,
+     sample_news,
+     sample_twitter)
+```
+
+### Construct tokens and generate n-grams
+###### Here I construct tokens from the data with puctuations, numbers, urls, symbols and stopwords removed. 
+###### After that, n-grams (n=1-3) were generated and ready to be analyzed or visualized in the next section.
+```{r tokens, echo=TRUE}
+#Construct tokens
+  corpus_all<-str_remove_all(corpus_all,"#|@|-")
+  tokens<-tokens(tolower(corpus_all),
+                 remove_punct = TRUE,
+                 remove_numbers = TRUE,
+                 remove_url = TRUE,
+                 remove_symbols = TRUE)
+  tokens_clean<-tokens_wordstem(tokens_tolower(tokens))
+  rm(tokens)
+  
+#Generate n-grams and stored in variables
+  tokens_1<-tokens_ngrams(tokens_clean, n=1)
+  tokens_2<-tokens_ngrams(tokens_clean, n=2)
+  tokens_3<-tokens_ngrams(tokens_clean, n=3)
+  saveRDS(tokens_clean, "tokens_clean.RDS")
+  rm(tokens_clean)
+
+#Convert the tokens to document-feature matrix (DFM) format so that ithey are prepared to be passed onto other functions in the package for analysis.
+  dfm_1<-dfm(tokens_1)
+  dfm_2<-dfm(tokens_2)
+  dfm_3<-dfm(tokens_3)
+      saveRDS(tokens_1,"tokens_1.RDS")
+      saveRDS(tokens_2,"tokens_2.RDS")
+      saveRDS(tokens_3,"tokens_3.RDS")
+      rm(tokens_1,
+         tokens_2,
+         tokens_3)
+  dfm_1<-dfm_trim(dfm_1,5)
+  dfm_2<-dfm_trim(dfm_2,5)
+  dfm_3<-dfm_trim(dfm_3,5)
+      saveRDS(dfm_1,"dfm_1.RDS")
+      saveRDS(dfm_2,"dfm_2.RDS")
+      saveRDS(dfm_3,"dfm_3.RDS")
+```
+
+### Visualize results
+###### In this section, I analyze the frequencies of the n-grams and plot the histogram.
+###### The word cloud plots are for non-data scientist to understand the results of the analysis
+##### a. frequency count for top 20 n-grams
+```{r ngram frequency}
+#Count frequencies of the top 20 n-grams
+  tsfq_1_20 <- textstat_frequency(dfm_1, n = 20)
+  tsfq_2_20 <- textstat_frequency(dfm_2, n = 20)
+  tsfq_3_20 <- textstat_frequency(dfm_3, n = 20)
+  
+#Plot the frequencies into bar charts
+  ggplot(data=tsfq_1_20, aes(x = reorder(feature, frequency), y = frequency)) +
+    geom_bar(stat="identity",fill="#FFCCE5") +
+    coord_flip() +
+    labs(x = NULL, y = "Frequency") +
+    theme(legend.position = "none") +
+    ggtitle("Frequency of top 20 Unigram") + 
+    theme_minimal()
+  
+  ggplot(data=tsfq_2_20, aes(x = reorder(feature, frequency), y = frequency)) +
+    geom_bar(stat="identity",fill="#B2DAEE") +
+    coord_flip() +
+    labs(x = NULL, y = "Frequency") +
+    theme(legend.position = "none") +
+    ggtitle("Frequency of top 20 Digram") + 
+    theme_minimal()
+  
+  ggplot(data=tsfq_3_20, aes(x = reorder(feature, frequency), y = frequency)) +
+    geom_bar(stat="identity",fill="#B2EECC") +
+    coord_flip() +
+    labs(x = NULL, y = "Frequency") +
+    theme(legend.position = "none") +
+    ggtitle("Frequency of top 20 Trigram") + 
+    theme_minimal()
+  rm(tsfq_1_20,
+     tsfq_2_20,
+     tsfq_3_20)
+```
+
+##### b. frequency count for top 500 n-grams
+```{r ngram frequency}
+#Count frequencies of the top 20 n-grams
+  tsfq_1_500 <- textstat_frequency(dfm_1, n=500)
+  tsfq_2_500 <- textstat_frequency(dfm_2, n=500)
+  tsfq_3_500 <- textstat_frequency(dfm_3, n=500)
+  
+#Plot the frequencies into bar charts
+  ggplot(data=tsfq_1_500, aes(x = rank, y = frequency)) +
+    geom_point(color="#FFCCE5")+
+    labs(x = "Frequency Rank", y = "Frequency") +
+    theme(legend.position = "none") +
+    ggtitle("Frequency of top 500 Unigram") + 
+    theme_minimal()
+  
+  ggplot(data=tsfq_2_500, aes(x = rank, y = frequency)) +
+    geom_point(color="#B2DAEE")+
+    labs(x = "Frequency Rank", y = "Frequency") +
+    theme(legend.position = "none") +
+    ggtitle("Frequency of top 500 Bigram") + 
+    theme_minimal()
+  
+  ggplot(data=tsfq_3_500, aes(x = rank, y = frequency)) +
+    geom_point(color="#B2EECC")+
+    labs(x = "Frequency Rank", y = "Frequency") +
+    theme(legend.position = "none") +
+    ggtitle("Frequency of top 500 Trigram") + 
+    theme_minimal()
+  rm(tsfq_1_500,
+     tsfq_2_500,
+     tsfq_3_500)
+```
+##### c. word clouds
+```{r word cloud, out.width= "75%", fig.align="left"}
+#Plot wordclouds for the top 100 n-grams with highest frequencies
+  textplot_wordcloud(dfm_1, max_words = 100, color = "#FFCCE5")
+  textplot_wordcloud(dfm_2, max_words = 100, color = "#B2DAEE")
+  textplot_wordcloud(dfm_3, max_words = 100, color = "#B2EECC")
+```
+
+### Next step
+###### With the tokens and n-grams generate in this report, we will be able to build a predictive model. The idea is that given the first 1 or 2 words provided, we will be able to identify the n-grams that have the highest frequency, and thus the most possible word come up next.
+###### These data will then be passed onto a shiny app which users can handle easily.
