@@ -1,0 +1,12 @@
+name: PredictNextWord
+title: PredictNextWord
+username:
+account: yh-shiny
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 1955458
+bundleId: 2887653
+url: https://yh-shiny.shinyapps.io/PredictNextWord/
+when: 1584388032.77789
+asMultiple: FALSE
+asStatic: FALSE
