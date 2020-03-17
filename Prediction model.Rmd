@@ -1,0 +1,172 @@
+---
+title: "Week 3 Quiz"
+author: "YH"
+date: "13/03/2020"
+output: html_document
+---
+```{r initiate}
+library(data.table)
+```
+
+###### Get all the variables from Week 2 Milestone report and prcess the words into data table
+```{r Processing tokens}
+# Create a dataframe containint n-gram frequency information.
+# Put each of individual word in an n-gram into a separate column
+  tsfq_1 <- textstat_frequency(dfm_1)
+      tsfq_1$word_1<-tsfq_1$feature
+      tsfq_1$feature<-NULL
+      tsfq_1$docfreq<-NULL
+      tsfq_1$group<-NULL
+      tsfq_1<-tsfq_1[,c("rank", "word_1", "frequency")]
+  saveRDS(tsfq_1, "tsfq_1.RDS")
+  
+  tsfq_2 <- textstat_frequency(dfm_2)
+      tsfq_2$word_1<-str_split_fixed(tsfq_2$feature,"_",2)[,1]
+      tsfq_2$word_2<-str_split_fixed(tsfq_2$feature,"_",2)[,2]
+      tsfq_2$feature<-NULL
+      tsfq_2$docfreq<-NULL
+      tsfq_2$group<-NULL
+      tsfq_2<-tsfq_2[,c("rank","word_1","word_2", "frequency")]
+  saveRDS(tsfq_2, "tsfq_2.RDS")
+    
+    tsfq_3 <- textstat_frequency(dfm_3)
+      tsfq_3$word_1<-str_split_fixed(tsfq_3$feature,"_",3)[,1]
+      tsfq_3$word_2<-str_split_fixed(tsfq_3$feature,"_",3)[,2]
+      tsfq_3$word_3<-str_split_fixed(tsfq_3$feature,"_",3)[,3]
+      tsfq_3$feature<-NULL
+      tsfq_3$docfreq<-NULL
+      tsfq_3$group<-NULL
+      tsfq_3<-tsfq_3[,c("rank","word_1","word_2", "word_3","frequency")]
+ saveRDS(tsfq_3, "tsfq_3.RDS")
+
+
+```
+
+###### Add smooth using Kneser-Kney Smoothing methods
+```{r KKS 2gram}
+
+    discount_value<-0.75
+
+# Dividing number of times word 2 occurs as second part of bigram, by total number of bigrams.  
+# ( Finding probability for a word given the number of times it was second word of a bigram)
+    sums_2<-sum(tsfq_2$frequency)
+    ckn_2<-aggregate(x=list(frequency=tsfq_2$frequency),
+                     by=list(word_1=tsfq_2$word_2),
+                     FUN=sum)
+    ckn_2<-ckn_2[order(ckn_2$frequency,decreasing = TRUE),]
+    ckn_2$Prob<-ckn_2$frequency/sums_2
+    
+# Assigning the probabilities as second word of bigram, to unigrams
+    tsfq_1<-merge(tsfq_1,ckn_2[,c("word_1","Prob")], by="word_1",all.x = TRUE)
+    tsfq_1<-tsfq_1[order(tsfq_1$Prob,decreasing = TRUE),]
+
+# Finding number of times word 1 occurred as word 1 of bi-grams
+    n1wi_2 <- aggregate(x=list(frequency=tsfq_2$frequency),
+                        by=list(word_1=tsfq_2$word_1),
+                        FUN=sum)
+
+# Assigning total times word 1 occured to bigram cn1
+    tsfq_2$Cn1<-NA
+    class(tsfq_2$Cn1)<-"numeric"
+    for(i in 1：nrow(tsfq_2)){
+      match<-as.character(tsfq_2[i,"word_1"])
+      tsfq_2[i,"Cn1"]<- tsfq_1[tsfq_1$word_1==match, "frequency"]
+    }
+# Kneser Kney Algorithm
+#    tsfq_2$Prob<-NA
+#    class(tsfq_2$Prob)<-"numeric"
+#    for(i in 1：nrow(tsfq_2)){
+#        tsfq_2[i,"Prob"]<-((tsfq_2$frequency-discount_value)/tsfq_2$Cn1 +
+#                             discount_value / tsfq_2$Cn1 * n1wi_2)
+#    }
+#words_2[, Prob := ((count - discount_value) / Cn1 + 
+#                     discount_value / Cn1 * n1wi_2[word_1, N] * words_1[word_2, Prob])]
+
+
+```
+
+```{r KKS 3gram}
+
+# Finding count of word1-word2 combination in bigram 
+    temp_2<-words_2[,1:3]
+    temp_3<-words_3[,1:3]
+    temp_3<-merge(temp_3,temp_2, by=c("word_1","word_2"))
+    setnames(temp_3,"count","Cn2")
+    words_3<-merge(words_3,temp_3,by=c("word_1","word_2","word_3"))
+    rm(temp_2,temp_3)
+# Finding count of word1-word2 combination in trigram
+    n1wi_3 <- words_3[, .(N=.N), by = .(word_1, word_2)]
+    setkey(n1wi_3, word_1, word_2)
+
+# Kneser Kney Algorithm
+    words_3[, Prob := (count - discount_value) / Cn2 + 
+              discount_value / Cn2 * n1wi_3[.(word_1, word_2), N] *
+              words_2[.(word_1, word_2), Prob]]
+
+    
+uniwords<-tsfq_1[1:50]
+saveRDS(uniwords, "uniwords.RDS")
+```
+
+```{r prediction}
+predict_3<- function(w1, w2, n=5) {
+  next_3<-tsfq_3[(tsfq_3$word_1 == w1 & tsfq_3$word_2 == w2),"word_3"]
+  next_3<-as.character(unlist(next_3))
+  l<-length(next_3)
+      if (l == 0){
+        next_3<-predict_2(w2, n=5)
+      } else if (l >= n) {
+        next_3<-next_3[1:n]
+      } else if (l < n) {
+        next_2<-predict_2(w2, n=5)
+        next_2<-next_2[!next_2 %in% next_3]
+        next_2<-next_2[1:(n - l)]
+        next_3<-c(next_3, next_2)
+      }
+      return(next_3)
+}
+
+predict_2<- function(w2, n=5){
+  next_2<-tsfq_2[tsfq_2$word_1 == w2, "word_2"]
+  next_2<-as.character(unlist(next_2))
+  l<-length(next_2)
+        if (l == 0){
+        next_2<-predict_1(n=5)
+      } else if (l >= n) {
+        next_2<-next_2[1:n]
+      } else if (l < n) {
+        next_1<-predict_1(n=5)
+        next_1<-next_1[!next_1 %in% next_2]
+        next_1<-next_1[1:(n - l)]
+        next_2<-c(next_2, next_1)
+      }
+      return(next_2)
+}
+
+predict_1<- function(n=5){
+    return(sample(uniwords[, "word_1"], size = n))
+}
+
+retrieve_words <- function(sentence){
+  words<-str_split(sentence, pattern=" ")
+  words<-as.character(unlist(words))
+  total<-length(words)
+  w1<-words[total-1]
+  w2<-words[total]
+  print(w1)
+  print(w2)
+}
+retrieve_words <- function(sentence){
+        words<-str_split(sentence, pattern=" ")
+        words<-as.character(unlist(words))
+        total<-length(words)
+        if (total==1){
+            w1<-NA
+            w2<-words
+        } else if (total>=2) {
+            w1<-words[total-1]
+            w2<-words[total]
+        }
+        return(c(w1,w2))
+    }
+```
